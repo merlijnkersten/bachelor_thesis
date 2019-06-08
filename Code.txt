@@ -1,5 +1,5 @@
 (* Simulation measurement tool, 30 May 2018
-   Code tested and approved for Mathemtica 11.2 and 11.3 *)
+   Code tested and approved for Mathemtica 11.2 and 11.3 on Windows 10 Pro *)
 
 
 (* ===========
