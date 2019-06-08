@@ -12,3 +12,10 @@ To find out, I wrote a Mathematica script that simulates a measurement tool with
 ![alt text](https://github.com/merlijnkersten/bachelor_thesis/blob/master/Direct%20shading%20animation.gif "Animation")
 
 If you have any further questions, please do not hesitate to contact me. 
+
+# Files in this depository
+* `Code.nb` and `Code.txt`: The actual code itself, as Mathematica notebook and as text file,
+* `Report.pdf`: My thesis report, which gives a detailed explanation of the code,
+* `Data_files`: A folder with data files used in the code. The code is rather slow in generating these data files, thus using pre-calculated ones speeds it up considerably,
+* `Direct shading animation.gif` and `Solar array.jpg`: Images used in this about,
+
