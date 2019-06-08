@@ -1,0 +1,143 @@
+(* Simulation measurement tool, 30 May 2018
+   Code tested and approved for Mathemtica 11.2 and 11.3 *)
+
+
+(* ===========
+   1. Preamble
+   =========== *)
+
+
+Remove["Global`*"]
+tospherical[{xx_, yy_, zz_}] := {Sqrt[xx^2 + yy^2 + zz^2], ArcTan[yy/xx], 
+    ArcCos[zz/Sqrt[xx^2 + yy^2 + zz^2]]}
+tocartesian[{r_, \[Theta]_, \[Phi]_}] := {r*Cos[\[Theta]]*Sin[\[Phi]], r*Sin[\[Theta]]*Sin[\[Phi]], r*Cos[\[Phi]]}
+
+
+(* ========================================
+   2. Choosing number of measurement points 
+   ======================================== *)
+
+
+(* 2.1 Import *)
+
+figureofmeritdata = Flatten[Import["PATH//FigureOfMeritData.csv", "Data"]];
+comparisondata = Import["PATH//ComparisonData.mx", "Table"];
+
+comparisondatapart[j_]:= Import[StringJoin["PATH\\comparisondata_", 
+  ToString[j],".csv"],"Data"]
+
+
+
+(* 2.2 Figure of merit *)      
+  
+figureofmerit[fraction_, coordinates_] := Module[{},
+  Which[coordinates[[3]] < 0, coordinates[[3]] = Abs[coordinates[[3]]]];
+  
+  direct := (1 - fraction)*Normalize[coordinates];
+  
+  diffuse[a_, b_, c_] := fraction*Normalize[{a, b, c}]; 
+  
+  illuminance[d_, e_, f_] := If[Dot[diffuse[d, e, f], Normalize[{d, e, f}]] >= 0, 
+     Dot[diffuse[d, e, f], Normalize[{d, e, f}]], 0] + 
+     If[Dot[direct, Normalize[{d, e, f}]] >= 0, Dot[direct, Normalize[{d, e, f}]], 0];
+  
+  figure =  0.5*NIntegrate[Abs[illuminance[d, e, f] - illuminance[-d, -e, -f]], 
+     {d, e, f} \[Element] Ball[{0, 0, 0}, 1]]/
+     NIntegrate[illuminance[d, e, f], {d, e, f} \[Element] Ball[{0, 0, 0}, 1]]]
+
+fractionvalues = {0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1};
+
+figureofmeritdata = Table[figureofmerit[l,{1,1,1}/Sqrt[3]],{l,fractionvalues}];
+
+figureofmeritassociation = Association[Table[fractionvalues[[j]]-> figureofmeritdata[[j]],{j,1,11}]];
+
+Export["PATH//FigureOfMeritData.csv", figureofmeritdata]
+
+(* 2.3 Metric *)
+
+metric[points_, fraction_, coordinates_] := Module[{},
+  Which[coordinates[[3]] < 0, coordinates[[3]] = Abs[coordinates[[3]]]];
+  
+  direct := (1 - fraction)*Normalize[coordinates];
+  diffuse[{a_, b_, c_}] := fraction*Normalize[{a, b, c}];
+  
+  Which[points == 6, normals = Normalize[#] & /@ PolyhedronData["Octahedron", "Vertices"], 
+   points == 8, normals = Normalize[#] & /@ PolyhedronData["Cube", "Vertices"],
+   points == 10, normals = Normalize[#] & /@ PolyhedronData["ElongatedSquareDipyramid", "Vertices"], 
+   points == 12, normals = Normalize[#] & /@ PolyhedronData["Icosahedron", "Vertices"],
+   points == 14, normals = Normalize[#] & /@ PolyhedronData["CumulatedCube", "Vertices"], 
+   points == 16, normals = Append[Append[Normalize[#] & /@ PolyhedronData[{"Antiprism", 7}, "Vertices"],
+     {0, 0, 1}], {0, 0, -1}],
+   points == 18, normals = Normalize[#] & /@ PolyhedronData["OctahedronThreeCompound", "Vertices"],
+   points == 20, normals = Normalize[#] & /@ PolyhedronData["Dodecahedron", "Vertices"], 
+   points == 22, normals = Normalize[#] & /@ PolyhedronData["RhombicIcosahedron", "Vertices"],
+   points == 24, normals = Normalize[#] & /@ PolyhedronData["SmallRhombicuboctahedron", "Vertices"] ,
+   points == 26, normals = Normalize[#] & /@ PolyhedronData["DisdyakisDodecahedron", "Vertices"]
+  ];
+  
+  illuminance[d_] := If[ Dot[diffuse[d], Normalize[d]] >= 0, Dot[diffuse[d], Normalize[d]], 0] + 
+   If[ Dot[direct, Normalize[d]] >= 0, Dot[direct, Normalize[d]], 0];
+  
+  vector[e_] := Abs[illuminance[e] - illuminance[-e]];
+  
+  metriccalculation = 0.5*Sum[vector[f], {f, normals}]/Sum[illuminance[g], {g, normals}]
+]
+
+(* 2.4 Comparison figure of merit and metric *)
+
+comparisondata = Table[Abs[metric[k, l, RandomPoint[Sphere[]]] - figureofmeritassociation[l]]/
+   figureofmeritassociation[l],5000, {l, {0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1}}, 
+   {k, {6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26}}];
+
+comparisonmean = Table[Mean[Table[comparisondata[[k, j, i]], {k, 1, 5000}]], {i, 1, 11}, {j, 1, 11}];
+
+comparisondatapart[j_]:=comparisondata[[All,All,j]]
+
+Export[StringJoin["PATH\\comparisondata_", 
+  ToString[#],".csv"],comparisondatapart[#]]&/@Range[1,11]
+
+
+(* =================================
+   3. Implementing shadow for n = 12
+   ================================= *)
+
+
+(* 3.1 Import *)
+
+comparisontwelveshadowdata = Import["PATH//ComparisonTwelveData.csv", "Data"];
+
+(* 3.2 Metric for twelve points with shadow *)
+
+metrictwelvepointswithshadow[fraction_, coordinates_] := Module[{},
+  direct := (1 - fraction)*Normalize[coordinates];
+  
+  diffuse[{a_, b_, c_}] := fraction*Normalize[{a, b, c}];
+  
+  shadediffuse[h_] := If[Dot[diffuse[h], Normalize[h]] >= 0, If[h != {0, 0, 1} && h != {0, 0, -1}, 
+    0.974, 1], 0];
+  
+  shadedirect[i_, j_] := Module[{},
+    pointtorim := tocartesian[{1, tospherical[i][[2]], 
+      tospherical[tocartesian[{3, tospherical[i][[2]], Pi/2}] - j][[3]]}];
+    shadecalculation = If[Dot[Normalize[i], j] > 0 &&  Abs[Dot[Normalize[i], pointtorim]] < 0.9983, 1, 0];
+    returns = If[NumericQ[shadecalculation], shadecalculation, 0]];
+  
+  normals = {
+    {0, 0, 1}, {0, 0, -1}, {0.2766, -0.8505, 0.4473}, {-0.2766, 0.8505, -0.4473}, {0.8944, 0, 0.4472},
+    {-0.8944, 0, -0.4472}, {0.2766, 0.8505, 0.4473}, {-0.2766, -0.8505, -0.4473}, {-0.7238, 0.5254, 0.4472},
+    {0.7238, -0.5254, -0.4472}, {-0.7238, -0.5254, 0.4472}, {0.7238, 0.5254, -0.4472}};
+  
+  illuminance[d_] := Dot[diffuse[d], Normalize[d]]*shadediffuse[d] + Dot[direct, 
+    Normalize[d]]*shadedirect[Normalize[coordinates], d];
+  
+  vector[e_] := Abs[illuminance[e] - illuminance[-e]];
+  
+  metriccalculation = 0.5*Sum[vector[f], {f, normals}]/Sum[illuminance[g], {g, normals}]]
+
+(* 3.3 Comparison metric and figure of metric *) 
+
+comparisontwelveshadowdata = Table[Table[ Abs[metrictwelvepointswithshadow[l,RandomPoint[Sphere[]]] - 
+    figureofmeritassociation[l]]/figureofmeritassociation[l], 10000], 
+    {l, {0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1}}];
+
+Export["PATH//ComparisonTwelveData.csv", comparisontwelveshadowdata]
